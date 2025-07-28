@@ -23,17 +23,24 @@ class ClaudeCodeGenerator(BaseToolGenerator):
 
         # 프롬프트는 Gemini와 동일하게 사용 가능
         prompt = f"""
-        당신은 파이썬 함수의 핵심 로직을 작성하는 AI입니다.
-        다음 [도구 명세서]를 보고, 이 도구의 `execute` 메소드 안에 들어갈 파이썬 코드 '본문'만 작성해주세요.
-        - 다른 import 구문, 클래스 정의, 함수 정의는 절대 포함하지 마세요.
-        - 들여쓰기는 4칸 공백을 사용하세요.
-        - 최종 결과는 반드시 JSON 형식의 문자열을 반환해야 합니다.
-
-        [도구 명세서]
-        {json.dumps(tool_spec, ensure_ascii=False, indent=2)}
-        """
+        ### 페르소나 (Persona) ###
+        당신은 대한민국 스타트업 생태계를 위한 파이썬 도구를 개발하는, 경험 많은 한국인 시니어 개발자입니다.
         
-        time.sleep(10) # API 속도 제한 준수
+        ### 매우 중요한 코드 생성 규칙
+        1.  **언어:** 모든 코드, 주석, 변수명, 결과 메시지는 **반드시 한국어 또는 영어**로만 작성해야 합니다. 다른 언어(특히 중국어)는 절대 사용해서는 안 됩니다.
+        2.  **문법:** `execute` 메소드의 타입 힌트는 반드시 `str`, `int`, `float` 등 표준 파이썬 타입만 사용하세요. (`string`, `number` 등은 사용 금지)
+        3.  **내용:** `execute` 메소드의 본문은 [도구 명세서]의 목적에 맞는, 논리적으로 타당한 모의(Mock) 로직을 포함해야 합니다. `pass`만 있는 빈 함수는 허용되지 않습니다.
+        4.  **출력:** 최종 결과는 반드시 `json.dumps(..., ensure_ascii=False)` 구문을 사용하여 JSON 형식의 '문자열'을 반환해야 합니다.
+        
+        ### [도구 명세서]
+        {json.dumps(tool_spec, ensure_ascii=False, indent=2)}
+        
+        ### [최종 출력]
+        다른 설명 없이, 위의 모든 규칙을 준수한 최종 파이썬 코드만 응답하세요.
+        """
+
+        
+        # time.sleep(10) # API 속도 제한 준수
 
         # [수정] Claude API 호출 방식으로 변경
         response = self.client.messages.create(
