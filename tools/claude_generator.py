@@ -71,4 +71,5 @@ class {class_name}(ToolBase):
 {execute_body}
 """
         print(f"  [Code Builder] '{tool_name}'의 최종 코드를 성공적으로 조립했습니다.")
+        print(f"  [Code Source]\n{final_code.strip()}")
         return final_code.strip()
