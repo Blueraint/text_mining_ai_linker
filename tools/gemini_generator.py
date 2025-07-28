@@ -67,7 +67,7 @@ class GeminiCodeGenerator(BaseToolGenerator):
         # 최종 코드 조립
         final_code = f"""
 import json
-from tool.base import ToolBase
+from tools.base import ToolBase
 # 필요하다면 다른 라이브러리 import (예: requests)
 
 class {class_name}(ToolBase):
