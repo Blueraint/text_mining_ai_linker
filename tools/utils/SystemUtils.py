@@ -3,6 +3,7 @@ import os
 import configparser
 from openai import OpenAI
 import google.generativeai as genai
+import anthropic
 
 # 기본적인 Privacy 를 처리하기 위한 간단Util
 class PrivacyUtils:
@@ -57,6 +58,14 @@ class ConfigLoader:
         api_key = self.get_api_key('gemini.api.key')
         genai.configure(api_key=api_key)
         return genai.GenerativeModel('gemini-2.5-flash')
+    
+    def get_claude_client(self) -> anthropic.Anthropic:
+        """Anthropic 클라이언트 객체를 생성하여 반환합니다."""
+        try:
+            api_key = self.get_api_key('claude.api.key')
+            return anthropic.Anthropic(api_key=api_key)
+        except ValueError as e:
+            raise e
 
 
 
