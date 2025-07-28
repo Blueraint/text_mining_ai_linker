@@ -27,6 +27,7 @@ class GeminiCodeGenerator(BaseToolGenerator):
         1.  다른 import, 클래스, 함수 정의 없이 오직 `execute` 메소드의 내용만 작성하세요.
         2.  들여쓰기는 4칸 공백을 사용하세요.
         3.  최종 결과는 반드시 `return json.dumps(...)` 구문을 사용하여 JSON 형식의 '문자열'을 반환해야 합니다.
+        
 
         ### 모범 코드 예시 (이런 형식으로 작성해야 합니다)
         ```python
@@ -66,7 +67,7 @@ class GeminiCodeGenerator(BaseToolGenerator):
         # 최종 코드 조립
         final_code = f"""
 import json
-from .base import ToolBase
+from tool.base import ToolBase
 # 필요하다면 다른 라이브러리 import (예: requests)
 
 class {class_name}(ToolBase):
