@@ -1,0 +1,10 @@
+{
+    "user_kim": {
+        "name": "김대표",
+        "business_id": "174-82-00063"
+    },
+    "user_lee": {
+        "name": "이청년",
+        "business_id": null
+    }
+}

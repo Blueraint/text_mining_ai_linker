@@ -1,0 +1,28 @@
+[
+    {
+        "doc_id": "SBC_LOAN",
+        "content": "소상공인 정책자금 직접대출은 소상공인의 자금 조달을 돕습니다. 필수 서류는 사업자등록증명원, 국세납세증명서입니다.",
+        "metadata": {
+            "source": "소상공인시장진흥공단",
+            "destination": "소상공인시장진흥공단",
+            "policy_code": "SBC-DIRECT-2025-Q3",
+            "required_docs": [
+                "사업자등록증명원",
+                "국세납세증명서"
+            ]
+        }
+    },
+    {
+        "doc_id": "YOUTH_ACCOUNT",
+        "content": "청년도약계좌는 청년의 자산 형성을 지원하는 정책형 금융상품입니다. 가입을 위해 소득확인증명서가 필요합니다.",
+        "metadata": {
+            "source": "서민금융진흥원",
+            "destination": "취급 은행",
+            "policy_code": "YOUTH-LEAP-2025",
+            "required_docs": [
+                "소득확인증명서(청년도약계좌 가입용)",
+                "연령 확인용 신분증"
+            ]
+        }
+    }
+]
