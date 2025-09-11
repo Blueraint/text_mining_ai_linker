@@ -4,6 +4,7 @@ from .base import ToolBase
 import requests
 import json
 from .utils.SystemUtils import PrivacyUtils
+from .utils.SystemUtils import ConfigLoader
 
 # 위에서 정의내린 ToolBase Class 를 상속받는다
 class VerifyBusinessRegistrationTool(ToolBase):
@@ -15,8 +16,8 @@ class VerifyBusinessRegistrationTool(ToolBase):
         "required": ["user"]
     }
 
-    def __init__(self, _gov_api_key) :
-        self.gov_api_key = _gov_api_key
+    def __init__(self) : 
+        self.gov_api_key = ConfigLoader().get_api_key('govdata.api.key')
 
     # [추가] 실제 작동하는 국세청 API 연동 도구(사업자등록번호 상태조회)
     def execute(self, user: dict) -> str:
