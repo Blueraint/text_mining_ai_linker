@@ -146,25 +146,28 @@ class AIAgent:
                 당신은 반드시 다음의 논리적 순서에 따라 단계별로 계획을 세우고 도구를 사용해야 합니다.
 
                 **0. 지식 동기화:**
-               - 가장 먼저, `synchronize_knowledge_base` 도구를 사용해 `latest_policies.json` 파일과 당신의 지식을 동기화하여 최신 상태를 유지합니다.
+                - 가장 먼저, `synchronize_knowledge_base` 도구를 사용해 `latest_policies.json` 파일과 당신의 지식을 동기화하여 최신 상태를 유지합니다.
 
-                **1. 정보 검색 단계:**
+                **1. 목표 분해 (Goal Decomposition):**
+                -   사용자의 최종 요청을 완수하기 위해 어떤 하위 작업들이 필요한지 먼저 생각합니다. (예: '정보 검색', '자격 확인', '서류 준비', '최종 제출')
+
+                **2. 정보 검색 단계:**
                 - 가장 먼저, 사용자의 질문 의도를 파악하여 `search_knowledge_base` 도구를 사용해 관련 정책 정보를 검색합니다.
                 - 만약 검색 결과가 "관련 정보를 찾지 못했습니다" 라면, 더 이상 다른 도구를 사용하지 말고 사용자에게 이 사실을 알리고 프로세스를 종료합니다.
 
-                **2. 사업자 상태 확인:**
+                **3. 사업자 상태 확인:**
                 - 먼저, `사용자 ID`를 `verify_business_registration` 도구에 전달하여 국세청 상태를 확인합니다.
                 - 상태가 정상이 아니면 프로세스를 중단합니다.
 
-                **3. 서류 수집 및 검증 단계:**
+                **4. 서류 수집 및 검증 단계:**
                 - 정보 검색에 성공했다면, 결과에 포함된 **`metadata`의 `required_docs` 리스트**를 확인합니다.
                 - 리스트에 있는 **모든 서류에 대해**, `fetch_document_from_mcp` 도구를 **하나씩 순서대로 호출**하여 서류를 가져옵니다.
                 - 각 서류를 가져온 직후, 즉시 `validate_document` 도구를 사용하여 해당 서류가 유효한지 검증합니다.
 
-                **4. 최종 제출 단계:**
+                **5. 최종 제출 단계:**
                 - 모든 서류의 수집 및 검증이 성공적으로 완료되었다면, 확보한 모든 `doc_token`들을 모아 `submit_application` 도구를 호출하여 최종 제출을 완료합니다.
 
-                **5. [매우 중요] 작업 완료:**
+                **6. [매우 중요] 작업 완료:**
                 - **'submit_application' 도구 호출이 성공적으로 끝난 직후**, 당신의 다음 행동은 **반드시 `finish_task` 도구를 호출**하여 최종 요약 메시지와 함께 작업을 종료해야 합니다.
                 - 'submit_application'의 결과(예: 신청ID 등)를 'finish_task'의 'summary' 파라미터에 포함하여 사용자에게 최종 보고하고 작업을 종료해야 합니다.
 
@@ -176,6 +179,8 @@ class AIAgent:
             # {"role": "user", "content": initial_query}
             {"role": "user", "content": contextual_query} # user_id 로 되어있는 부분을 이용하도록 유도
         ]
+
+        final_result_message = json.dumps({"status": "error", "message": "에이전트가 작업을 완료하지 못했습니다."})
 
         for i in range(7): # 최대 7단계 실행
             print(f"\n--- Agent Step {i+1} ---")
@@ -219,14 +224,18 @@ class AIAgent:
             for tool_call in response_message.tool_calls:
                 function_name = tool_call.function.name
                 function_args = json.loads(tool_call.function.arguments)
-                function_to_call = self.available_tools[function_name]
-
+                
                 # AI가 '작업 완료' 신호를 보낸 경우 -> 완전 종료
                 if function_name == "finish_task":
-                    summary_args = json.loads(tool_call.function.arguments)
+                    summary = function_args.get('summary', '작업이 완료되었습니다.')
                     print(f"  [Thought] 모든 작업이 완료되었다고 판단했습니다.")
-                    print(f"  [Final Answer] {summary_args.get('summary')}")
-                    return # 여기서 run 메소드를 완전히 종료
+                    print(f"  [Final Answer] {summary}")
+                    final_result_message = json.dumps({"status": "success", "message": summary})
+                    # 루프를 탈출하기 위해 플래그 설정
+                    should_break_loop = True
+                    break
+
+                function_to_call = self.available_tools[function_name]
 
                 # parameter 를 넘기지 않는 경우 해결
                 # 하드 코딩하는 것이 최선의 방안인가?
@@ -236,6 +245,9 @@ class AIAgent:
                     tool_output = function_to_call(**function_args)
 
                 messages.append({"tool_call_id": tool_call.id, "role": "tool", "name": function_name, "content": tool_output})
-
+            
+            if 'should_break_loop' in locals() and should_break_loop:
+                break
 
         print(f"\n{'#'*10} AI Agent Process Finished {'#'*10}")
+        return final_result_message
