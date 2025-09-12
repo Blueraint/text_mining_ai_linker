@@ -4,12 +4,13 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import uvicorn
 import json
-import sys # [개선] 시스템 종료를 위해 추가
+import sys
 
 # --- 기존 AI-Linker 모듈 import ---
 from ai_linker_agent import AIAgent
 from tools.utils.ragsystem import RAG_System
 from tools.utils.SystemUtils import ConfigLoader 
+from tools.utils.hybriddb import VectorDB_hybrid
 
 # --- FastAPI 앱 초기화 ---
 app = FastAPI(title="AI-Linker API")
@@ -96,3 +97,4 @@ async def run_agent_process(request: AgentRequest):
 if __name__ == "__main__":
 
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
