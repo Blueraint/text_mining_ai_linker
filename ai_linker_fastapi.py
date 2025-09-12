@@ -5,12 +5,26 @@ from pydantic import BaseModel
 import uvicorn
 import json
 import sys
+from typing import List, Dict, Any
+from tools.utils.hybriddb import VectorDB_hybrid
 
 # --- 기존 AI-Linker 모듈 import ---
 from ai_linker_agent import AIAgent
 from tools.utils.ragsystem import RAG_System
 from tools.utils.SystemUtils import ConfigLoader 
-from tools.utils.hybriddb import VectorDB_hybrid
+from fastapi import FastAPI, HTTPException, Security, Depends
+from fastapi.security import APIKeyHeader
+
+
+try:
+    # ConfigLoader를 통해 안전하게 API 키를 가져옵니다.
+    API_KEY = ConfigLoader().get_api_key('agent.api.key')
+except (FileNotFoundError, ValueError) as e:
+    print(f"[CRITICAL] API 키 로드 실패: {e}")
+    sys.exit(1) # 키가 없으면 서버 실행 중단
+
+API_KEY_NAME = "API_KEY"
+api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=True)
 
 # --- FastAPI 앱 초기화 ---
 app = FastAPI(title="AI-Linker API")
@@ -22,7 +36,8 @@ class AgentRequest(BaseModel):
 
 class AgentResponse(BaseModel):
     status: str
-    result: dict # 최종 결과는 JSON 객체일 가능성이 높으므로 dict로 변경
+    final_result: Dict[str, Any]
+    execution_log: List[str]
 
 # --- 시스템 초기화 ---
 # [개선] 전역 변수로 핵심 객체들을 선언
@@ -67,9 +82,20 @@ except (FileNotFoundError, json.JSONDecodeError, KeyError) as e:
     print("서버를 시작할 수 없습니다. 설정 또는 데이터 파일을 확인하세요.")
     sys.exit(1) # [개선] 프로그램 종료
 
+
+# --- API 키 검증 함수 ---
+async def get_api_key(key: str = Security(api_key_header)):
+    """요청 헤더의 API 키가 유효한지 검증합니다."""
+    if key == API_KEY:
+        return key
+    else:
+        raise HTTPException(
+            status_code=403, detail="Could not validate credentials"
+        )
+
 # API 처리
 @app.post("/run-agent", response_model=AgentResponse)
-async def run_agent_process(request: AgentRequest):
+async def run_agent_process(request: AgentRequest, api_key: str = Depends(get_api_key)):
     print(f"수신된 요청: user_id={request.user_id}, query='{request.query}'")
     
     try:
@@ -83,18 +109,46 @@ async def run_agent_process(request: AgentRequest):
             _client=openai_client
         )
         
-        final_result = agent.run(request.query)
+        run_output_dict = agent.run(request.query)
+        print(f"output : {run_output_dict}, type : {type(run_output_dict)}")
         
-        # agent.run()의 최종 결과가 JSON 문자열이라고 가정하고 파싱
-        result_json = json.loads(final_result)
-        return AgentResponse(status="success", result=result_json)
+        return AgentResponse(
+            status="success",
+            final_result=run_output_dict.get("final_result", {}),
+            execution_log=run_output_dict.get("execution_log", [])
+        )
 
     except Exception as e:
         print(f"에이전트 실행 중 오류 발생: {e}")
         raise HTTPException(status_code=500, detail=f"내부 서버 오류: {e}")
 
+
+#  RAG 시스템 내용 조회 API
+@app.get("/rag-content")
+async def get_rag_content():
+    """
+    현재 RAG 지식 베이스에 저장된 모든 정책 문서의 내용을 반환합니다.
+    """
+    if not rag_system:
+        raise HTTPException(status_code=500, detail="RAG 시스템이 초기화되지 않았습니다.")
+    
+    content = rag_system.get_all_documents_as_dict()
+    return {"rag_documents": content}
+
+
+# 등록된 사용자 목록 조회 API
+@app.get("/users")
+async def get_user_list():
+    """
+    현재 시스템에 등록된 모든 사용자의 ID 목록을 반환합니다.
+    """
+    if not USER_DATABASE:
+        raise HTTPException(status_code=500, detail="사용자 DB가 초기화되지 않았습니다.")
+    
+    user_ids = list(USER_DATABASE.keys())
+    return {"user_ids": user_ids}
+
 # 로컬 테스트용 실행 코드
 if __name__ == "__main__":
 
     uvicorn.run(app, host="0.0.0.0", port=8000)
-

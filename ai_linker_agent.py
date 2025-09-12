@@ -26,8 +26,11 @@ class AIAgent:
         # 코드 생성에 OpenAI 이용
         self.code_generator = OpenAIHybridCodeGenerator()
 
-
-
+    # 로그 생성 함수
+    def _log(self, message: str):
+        """콘솔에 로그를 출력하고, 동시에 실행 로그 리스트에 추가합니다."""
+        print(message)
+        self.execution_log.append(message)
 
     # Tool 을 다시 불러오는 함수
     def _reload_tools(self):
@@ -54,7 +57,7 @@ class AIAgent:
     # LLM이 사람을 돕도록 System prompt 가 있어 서비스 외 질문에도 답변을 해버린다
     # 이러한 현상을 해결하기 위해 맨 앞에서 서비스 의도 질문인지를 분류해버림
     def _is_query_in_scope(self, query: str) -> bool:
-        print("  [Gatekeeper] 사용자 질문의 의도를 분류합니다...")
+        self._log("  [Gatekeeper] 사용자 질문의 의도를 분류합니다...")
 
         # 의도 분류만을 위한 매우 구체적이고 단순한 프롬프트
         system_prompt = """
@@ -82,10 +85,10 @@ class AIAgent:
                 temperature=0.0
             )
             decision = response.choices[0].message.content.strip().upper()
-            print(f"  [Gatekeeper] 판단 결과: {decision}")
+            self._log(f"  [Gatekeeper] 판단 결과: {decision}")
             return decision == "YES"
         except Exception as e:
-            print(f"  [Gatekeeper] 의도 분류 중 오류 발생: {e}")
+            self._log(f"  [Gatekeeper] 의도 분류 중 오류 발생: {e}")
             return False # 오류 발생 시 보수적으로 접근하여 거절
 
 
@@ -106,12 +109,14 @@ class AIAgent:
 
 
     # 실제 에이전트 실행
-    def run(self, initial_query: str):
+    def run(self, initial_query: str) -> dict:
+        self.execution_log = []
+
         print(f"tool_loader : {self.tool_loader}")
         print(f"tools : {self.tools}")
         print(f"정의된 Tool들 : {self.api_tools}")
         print(f"사용가능 Tool들 : {self.available_tools}")
-        print(f"\n{'#'*10} AI Agent Process Start (Query: '{initial_query}') {'#'*10}")
+        self._log(f"\n{'#'*10} AI Agent Process Start (Query: '{initial_query}') {'#'*10}")
 
         # LLM 에 민감정보를 던지지 않기 위해 임의의 id를 내부 Database 에서 조회한다
         contextual_query = f"""
@@ -125,10 +130,10 @@ class AIAgent:
         # GateKeeper 에 의해 질문의 정상 여부(서비스 목적에 맞는지) 확인
         if not self._is_query_in_scope(initial_query):
             refusal_message = "죄송합니다. 저는 대한민국의 행정 및 금융 신청을 돕기 위해 설계된 전문 AI 에이전트입니다. 문의하신 내용에 대해서는 답변을 드리기 어렵습니다. '소상공인 대출'이나 '청년도약계좌' 등 도움이 필요한 신청 업무가 있으시다면 말씀해주세요."
-            print("\n[AI-Linker 최종 답변]")
-            print(refusal_message)
-            print(f"\n{'#'*10} AI Agent Process Finished (Out of Scope) {'#'*10}")
-            return # 프로세스 즉시 종료
+            self._log(f"[AI-Linker 최종 답변] {refusal_message}")
+            self._log(f"\n{'#'*10} AI Agent Process Finished (Out of Scope) {'#'*10}")
+            # return # 프로세스 즉시 종료
+            return {"final_result": final_result_message, "execution_log": self.execution_log}
 
         # --- 이 아래는 '문지기'를 통과한 경우에만 실행됩니다 ---
         messages = [
@@ -180,10 +185,13 @@ class AIAgent:
             {"role": "user", "content": contextual_query} # user_id 로 되어있는 부분을 이용하도록 유도
         ]
 
-        final_result_message = json.dumps({"status": "error", "message": "에이전트가 작업을 완료하지 못했습니다."})
+        # json 대신 dict 반환
+        # final_result_message = json.dumps({"status": "error", "message": "에이전트가 작업을 완료하지 못했습니다."})
+        final_result = {"status": "error", "message": "에이전트가 작업을 완료하지 못했습니다."}
+
 
         for i in range(7): # 최대 7단계 실행
-            print(f"\n--- Agent Step {i+1} ---")
+            self._log(f"\n--- Agent Step {i+1} ---")
 
             response = self.client.chat.completions.create(
                 model="gpt-4o", messages=messages, tools=self.api_tools, tool_choice="auto"
@@ -195,29 +203,30 @@ class AIAgent:
 
             if not response_message.tool_calls:
                 # [개선] AI가 작업을 완료하지 못했다고 판단되면, 자기 개선 로직 실행
-                print("  [Thought] 현재 도구로는 이 요청을 완료할 수 없습니다. 새로운 도구가 필요한지 확인합니다.")
+                self._log("  [Thought] 현재 도구로는 이 요청을 완료할 수 없습니다. 새로운 도구가 필요한지 확인합니다.")
 
                 # 1. OpenAI가 명세서 생성
                 existing_tool_names = [t.name for t in self.tools]
                 new_tool_spec = self.spec_generator.generate_spec(initial_query, existing_tool_names)
 
                 if new_tool_spec:
-                    print(f"\n[AI Agent] 필요한 새 도구의 명세서를 생성했습니다. (new_tool_spec : {new_tool_spec})")
+                    self._log(f"\n[AI Agent] 필요한 새 도구의 명세서를 생성했습니다. (new_tool_spec : {new_tool_spec})")
 
                     # 2. OpenAI기반 하이브리드(rule기반 + LLM기반) 명세서 기반으로 코드 생성 및 등록
                     success = self.code_generator.create_and_register_tool(new_tool_spec)
                 else:
-                    print("[AI Agent] 추가 도구가 필요 없다고 판단. 최종 답변을 출력합니다.")
-                    print(f"  [Final Answer] {response_message.content}")
+                    self._log("[AI Agent] 추가 도구가 필요 없다고 판단. 최종 답변을 출력합니다.")
+                    self._log(f"  [Final Answer] {response_message.content}")
 
                 if success:
                     self._reload_tools()
-                    print("[AI Agent] 새 도구를 장착했습니다. 처음부터 작업을 다시 시도합니다.")
+                    self._log("[AI Agent] 새 도구를 장착했습니다. 처음부터 작업을 다시 시도합니다.")
                     continue
                 else:
-                    print("[AI Agent] 새 도구 제작에 실패하여, 작업을 중단합니다.")
+                    self._log("[AI Agent] 새 도구 제작에 실패하여, 작업을 중단합니다.")
 
-                return
+                # return
+                return {"final_result": final_result_message, "execution_log": self.execution_log}
 
 
             # 기존 Tool Calling 로직
@@ -228,8 +237,8 @@ class AIAgent:
                 # AI가 '작업 완료' 신호를 보낸 경우 -> 완전 종료
                 if function_name == "finish_task":
                     summary = function_args.get('summary', '작업이 완료되었습니다.')
-                    print(f"  [Thought] 모든 작업이 완료되었다고 판단했습니다.")
-                    print(f"  [Final Answer] {summary}")
+                    self._log(f"  [Thought] 모든 작업이 완료되었다고 판단했습니다.")
+                    self._log(f"  [Final Answer] {summary}")
                     final_result_message = json.dumps({"status": "success", "message": summary})
                     # 루프를 탈출하기 위해 플래그 설정
                     should_break_loop = True
@@ -249,5 +258,5 @@ class AIAgent:
             if 'should_break_loop' in locals() and should_break_loop:
                 break
 
-        print(f"\n{'#'*10} AI Agent Process Finished {'#'*10}")
-        return final_result_message
+        self._log(f"\n{'#'*10} AI Agent Process Finished {'#'*10}")
+        return {"final_result": final_result_message, "execution_log": self.execution_log}
