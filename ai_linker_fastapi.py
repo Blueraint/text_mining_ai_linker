@@ -42,6 +42,10 @@ try:
 
     # rag_data.json 파일에서 RAG 지식 베이스 로드
     rag_system = RAG_System()
+    # Hybrid Database 장착
+    rag_system.set_database = VectorDB_hybrid()
+
+    
     with open('rag_data.json', 'r', encoding='utf-8') as f:
         policies = json.load(f)
     
@@ -90,4 +94,5 @@ async def run_agent_process(request: AgentRequest):
 
 # 로컬 테스트용 실행 코드
 if __name__ == "__main__":
+
     uvicorn.run(app, host="0.0.0.0", port=8000)
