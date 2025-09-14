@@ -3,12 +3,16 @@ import sys, os
 import subprocess
 # --- 3. 도구 생성 파이프라인 (tool_generator.py) ---
 
-class ToolGenerationPipeline:
+from tools.utils.log_util import LoggingMixin
+# self._log 는 'print'와 logging 을 포함하는 함수이다.
+# logging.을 통해 외부 api response 로 과정을 보여준다
+
+class ToolGenerationPipeline(LoggingMixin):
     def __init__(self, _client) :
         self.client = _client
         
     def _generate_tool_code(self, tool_spec: dict) -> str:
-        print(f"  [Generator] LLM에게 '{tool_spec['name']}' 도구 코드 생성을 요청합니다...")
+        self._log(f"  [Generator] LLM에게 '{tool_spec['name']}' 도구 코드 생성을 요청합니다...")
         
         # 코드 제작 프롬프트 정의
         prompt = f"""
@@ -75,8 +79,9 @@ class ToolGenerationPipeline:
         from .base import ToolBase
         import time, json
         import numpy as np
+        from tools.utils.log_util import LoggingMixin
         
-        class FetchDocumentFromMcpTool(ToolBase) :
+        class FetchDocumentFromMcpTool(LoggingMixin, ToolBase) :
             name = "fetch_document_from_mcp"
             description = "필요한 서류를 MCP를 통해 기관에서 가져옵니다."
             parameters = {
@@ -87,7 +92,7 @@ class ToolGenerationPipeline:
 
             def execute(self, document_name: str, user_id: str) -> str:
                 # 임의로 Mocking 한 서비스
-                print(f"  [Tool: MCP] '{document_name}' 전송 요청 (사용자: {user_id})... 사용자 동의 획득...")
+                self._log(f"  [Tool: MCP] '{document_name}' 전송 요청 (사용자: {user_id})... 사용자 동의 획득...")
 
                 # 데이터 원문 대신, 유효기간 등 메타데이터를 포함한 확인 토큰 반환
                 return json.dumps({
@@ -104,7 +109,7 @@ class ToolGenerationPipeline:
         return response.choices[0].message.content.replace("```python", "").replace("```", "").strip()
 
     def _test_generated_code(self, code: str, tool_name: str) -> bool:
-        print(f"  [Generator] 생성된 '{tool_name}' 코드를 샌드박스에서 테스트합니다...")
+        self._log(f"  [Generator] 생성된 '{tool_name}' 코드를 샌드박스에서 테스트합니다...")
         test_filepath = f"temp_test_{tool_name}.py"
         with open(test_filepath, 'w', encoding='utf-8') as f:
             f.write(code)
@@ -114,10 +119,10 @@ class ToolGenerationPipeline:
                 [sys.executable, "-c", f"import {test_filepath[:-3]}"],
                 capture_output=True, text=True, timeout=10, check=True
             )
-            print(f"  [Generator] 테스트 성공.")
+            self._log(f"  [Generator] 테스트 성공.")
             return True
         except subprocess.CalledProcessError as e:
-            print(f"  [Generator] 테스트 실패 (컴파일/실행 오류): {e.stderr}")
+            self._log(f"  [Generator] 테스트 실패 (컴파일/실행 오류): {e.stderr}")
             return False
         finally:
             if os.path.exists(test_filepath):
@@ -133,6 +138,6 @@ class ToolGenerationPipeline:
             plugin_path = os.path.join(tool_directory, f"{tool_name}_tool.py")
             with open(plugin_path, 'w', encoding='utf-8') as f:
                 f.write(generated_code)
-            print(f"  [Generator] 새 도구 '{tool_name}'을 '{plugin_path}'에 성공적으로 등록했습니다.")
+            self._log(f"  [Generator] 새 도구 '{tool_name}'을 '{plugin_path}'에 성공적으로 등록했습니다.")
             return True
         return False
