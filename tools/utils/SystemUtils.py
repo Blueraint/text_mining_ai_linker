@@ -29,14 +29,32 @@ class ConfigLoader:
         return cls._instance
 
     def _init_config(self, properties_file_path):
-        """app.properties 파일을 읽고 ConfigParser 객체로 로드"""
+        """설정 파일을 '선택적으로' 로드합니다."""
         self.config = configparser.ConfigParser(interpolation=None)
+        
+        # [개선] 파일이 존재하면 읽고, 존재하지 않으면 (클라우드 환경) 경고만 출력하고 넘어갑니다.
+        if os.path.exists(properties_file_path):
+            self.config.read(properties_file_path, encoding='utf-8')
+            print(f"[ConfigLoader] {properties_file_path} 파일을 로드했습니다. (Fallback으로 사용)")
+        else:
+            print(f"[ConfigLoader Warning] '{properties_file_path}' 파일을 찾을 수 없습니다. 환경 변수만 사용합니다.")
 
-        if not os.path.exists(properties_file_path):
-            raise FileNotFoundError(f"[ConfigLoader] 설정 파일 '{properties_file_path}'이 존재하지 않습니다.")
-
-        self.config.read(properties_file_path, encoding='utf-8')
-        print("[ConfigLoader] app.properties 파일 로드 성공")
+    def _get_priority_key(self, env_key: str, file_key: str) -> str:
+        """
+        [핵심 로직] 1순위로 환경 변수를 확인하고, 없으면 2순위로 properties 파일을 확인합니다.
+        """
+        # 1순위: 환경 변수 확인
+        api_key = os.environ.get(env_key)
+        if api_key:
+            return api_key
+            
+        # 2순위: properties 파일 확인 (환경 변수가 없는 경우)
+        try:
+            api_key = self.get_api_key(file_key)
+            return api_key
+        except (configparser.NoSectionError, configparser.NoOptionError, ValueError) as e:
+            # 두 곳 모두에 키가 없는 경우 최종 에러 발생
+            raise ValueError(f"'{env_key}' 환경 변수와 '{file_key}' 파일 설정이 모두 없습니다. 하나 이상 설정해야 합니다.") from e
 
     def get_api_key(self, key_name: str) -> str:
         """[API] 섹션에서 지정한 key_name에 해당하는 값을 반환"""
@@ -50,19 +68,25 @@ class ConfigLoader:
 
     def get_openai_client(self) -> OpenAI:
         """OpenAI 클라이언트 생성"""
-        api_key = self.get_api_key('openai.api.key')
+        # api_key = self.get_api_key('openai.api.key')
+        api_key = self._get_priority_key('OPENAI_API_KEY', 'openai.api.key')
+
         return OpenAI(api_key=api_key)
 
     def get_gemini_model(self):
         """Gemini 모델 객체 생성"""
-        api_key = self.get_api_key('gemini.api.key')
+        # api_key = self.get_api_key('gemini.api.key')
+        api_key = self._get_priority_key('GEMINI_API_KEY', 'gemini.api.key')
+
         genai.configure(api_key=api_key)
         return genai.GenerativeModel('gemini-2.5-flash')
     
     def get_claude_client(self) -> anthropic.Anthropic:
         """Anthropic 클라이언트 객체를 생성하여 반환합니다."""
         try:
-            api_key = self.get_api_key('claude.api.key')
+            # api_key = self.get_api_key('claude.api.key')
+            api_key = self._get_priority_key('CLAUDE_API_KEY', 'claude.api.key')
+
             return anthropic.Anthropic(api_key=api_key)
         except ValueError as e:
             raise e
