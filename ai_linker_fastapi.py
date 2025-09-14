@@ -20,7 +20,9 @@ from fastapi.security import APIKeyHeader
 
 try:
     # ConfigLoader를 통해 안전하게 API 키를 가져옵니다.
-    API_KEY = ConfigLoader().get_api_key('agent.api.key')
+    # API_KEY = ConfigLoader().get_api_key('agent.api.key')
+    API_KEY = ConfigLoader()._get_priority_key('AGENT_API_KEY', 'agent.api.key')
+
 except (FileNotFoundError, ValueError) as e:
     print(f"[CRITICAL] API 키 로드 실패: {e}")
     sys.exit(1) # 키가 없으면 서버 실행 중단
@@ -127,7 +129,7 @@ async def run_agent_process(request: AgentRequest, api_key: str = Depends(get_ap
                 user_database=USER_DATABASE,   # 전역 USER_DATABASE 객체 전달
                 _client=openai_client          # 전역 openai_client 객체 전달
             )
-            
+
             final_result_dict = agent.run(request.query)
 
             captured_logs = log_stream.getvalue().strip().split('\n')
