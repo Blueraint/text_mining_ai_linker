@@ -7,6 +7,8 @@ import json
 import sys
 from typing import List, Dict, Any
 from tools.utils.hybriddb import VectorDB_hybrid
+import logging 
+from io import StringIO
 
 # --- 기존 AI-Linker 모듈 import ---
 from ai_linker_agent import AIAgent
@@ -102,21 +104,42 @@ async def run_agent_process(request: AgentRequest, api_key: str = Depends(get_ap
         if request.user_id not in USER_DATABASE:
             raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
             
-        agent = AIAgent(
-            user_id=request.user_id,
-            rag_system=rag_system,
-            user_database=USER_DATABASE,
-            _client=openai_client
-        )
+        # 1. 이 요청만을 위한 임시 '로그 수집기'(Stream) 생성
+        log_stream = StringIO()
         
-        run_output_dict = agent.run(request.query)
-        print(f"output : {run_output_dict}, type : {type(run_output_dict)}")
+        # 2. 모든 로그 메시지가 이 수집기로 향하도록 로거(Logger) 설정
+        # (기존 핸들러를 잠시 비활성화하고, 우리 수집기를 유일한 대상으로 설정)
+        linker_logger = logging.getLogger('ai_linker')
+        linker_logger.setLevel(logging.INFO)
+
+        original_handlers = linker_logger.handlers[:]
         
-        return AgentResponse(
-            status="success",
-            final_result=run_output_dict.get("final_result", {}),
-            execution_log=run_output_dict.get("execution_log", [])
-        )
+        stream_handler = logging.StreamHandler(log_stream)
+        formatter = logging.Formatter('%(message)s')
+        stream_handler.setFormatter(formatter)
+        
+        linker_logger.handlers = [stream_handler]
+        
+        try:
+            agent = AIAgent(
+                user_id=request.user_id,
+                rag_system=rag_system,         # 전역 rag_system 객체 전달
+                user_database=USER_DATABASE,   # 전역 USER_DATABASE 객체 전달
+                _client=openai_client          # 전역 openai_client 객체 전달
+            )
+            
+            final_result_dict = agent.run(request.query)
+
+            captured_logs = log_stream.getvalue().strip().split('\n')
+            
+            return AgentResponse(
+                status="success",
+                final_result=final_result_dict.get("final_result", {}),
+                execution_log=captured_logs
+            )
+        finally:
+            # 4. 요청 처리가 끝나면, 원래의 로거 설정으로 복원
+            linker_logger.handlers = original_handlers
 
     except Exception as e:
         print(f"에이전트 실행 중 오류 발생: {e}")

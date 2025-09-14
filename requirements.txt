@@ -1,0 +1,20 @@
+# --- Web Server ---
+fastapi
+uvicorn
+
+# --- LLM API Clients ---
+openai
+google-generativeai
+anthropic
+
+# --- RAG & Search Engine ---
+scikit-learn
+faiss-cpu
+sentence-transformers
+torch
+
+# --- Utility ---
+requests
+beautifulsoup4
+configparser
+numpy<2.0 # faiss-cpu와의 호환성을 위해 버전 명시
