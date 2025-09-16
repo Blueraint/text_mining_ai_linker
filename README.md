@@ -14,6 +14,7 @@ AI-Linker는 **정책서비스 신청 및 관리 절차 전체를 AI 에이전�
 6. **결과 반환** : 최종 결과(예: 신청 성공 여부, 필요한 후속 조치 등)를 사용자에게 반환합니다.  
 
 아래 그림은 AI-Linker의 서비스 아키텍처 및 흐름을 시각적으로 보여줍니다:
+![image.png](attachment:e3394e90-010b-48b4-ae20-d0084f538bc2:image.png)
 
 ![AI-Linker 서비스 아키텍처](./ai_linker_flowchart.png)
 
